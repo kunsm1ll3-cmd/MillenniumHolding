@@ -198,38 +198,43 @@
 
 // --- LOGOUT ACTION ---
     function handleLogout() {
-      // 1. Hapus Sesi Login Aktif
+      // 1. Hapus Sesi Login Aktif (User wajib re-login)
       sessionStorage.removeItem("fc_active_session");
 
-      // 2. Hapus Preferensi Password Tersimpan (Agar bersih total saat logout)
-      localStorage.removeItem("fc_saved_user");
-      localStorage.removeItem("fc_saved_pass");
-      localStorage.removeItem("fc_save_flag");
-
-      // 3. Kosongkan Input Form Secara Total
+      // 2. Kosongkan Form Input secara visual saat Logout
       document.getElementById("username").value = "";
       document.getElementById("password").value = "";
       document.getElementById("savePassword").checked = false;
       document.getElementById("loginAlert").classList.add("d-none");
 
-      // 4. Pindah ke Tampilan Login
+      // 3. Tampilkan Halaman Login
       document.getElementById("dashboard-section").classList.add("d-none");
       document.getElementById("login-section").classList.remove("d-none");
     }
 
-    // --- LOAD SAVED CREDENTIALS ---
+    // --- AUTO FILL SAAT USERNAME DIKETIK ---
+    function handleUsernameChange() {
+      const currentInputUser = document.getElementById("username").value.trim().toLowerCase();
+      const savedUser = (localStorage.getItem("fc_saved_user") || "").toLowerCase();
+      const isSaveActive = localStorage.getItem("fc_save_flag") === "true";
+
+      // Jika username yang diketik cocok dengan data yang pernah disimpan
+      if (isSaveActive && currentInputUser === savedUser && currentInputUser !== "") {
+        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
+        document.getElementById("savePassword").checked = true;
+      } else {
+        // Jika beda user atau field dikosongkan, riset password
+        document.getElementById("password").value = "";
+        document.getElementById("savePassword").checked = false;
+      }
+    }
+
+    // --- LOAD CREDENTIALS SAAT HALAMAN DIBUKA ---
     function loadSavedPassword() {
-      // Kosongkan form terlebih dahulu
+      // Form diawali dalam kondisi kosong
       document.getElementById("username").value = "";
       document.getElementById("password").value = "";
       document.getElementById("savePassword").checked = false;
-
-      // Hanya isi jika opsi Simpan Password diaktifkan
-      if (localStorage.getItem("fc_save_flag") === "true") {
-        document.getElementById("username").value = localStorage.getItem("fc_saved_user") || "";
-        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
-        document.getElementById("savePassword").checked = true;
-      }
     }
 
     function formatIDR(amount, ccy) {
