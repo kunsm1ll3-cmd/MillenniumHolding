@@ -99,24 +99,17 @@
       <div id="companies-container"></div>
     </div>
   </div>
-  
-<script>
+
+  <script>
     // GANTI PASTA URL WEB APP APPS SCRIPT ANDA DI SINI:
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHF5n8LG9_clLnu3wA4xeDQMQ0k3LZHm6i-qhUNdhp5OhFmYKdBDD1atJve-CPkIaL/exec
-";
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHF5n8LG9_clLnu3wA4xeDQMQ0k3LZHm6i-qhUNdhp5OhFmYKdBDD1atJve-CPkIaL/exec";
 
     document.addEventListener("DOMContentLoaded", function() {
-      // 1. Cek apakah ada Sesi Login Aktif (Mencegah Auto-Logout saat Refresh)
       checkActiveSession();
-
-      // 2. Event Handler untuk Auto-Clear Password saat Username Diganti
       document.getElementById("username").addEventListener("input", handleUsernameChange);
-
-      // 3. Inisialisasi Pull To Refresh untuk HP
       initPullToRefresh();
     });
 
-    // --- SESSIONS & REFRESH HANDLING ---
     function checkActiveSession() {
       const savedSession = sessionStorage.getItem("fc_active_session");
       if (savedSession) {
@@ -136,7 +129,6 @@
       const currentInputUser = document.getElementById("username").value.trim();
       const savedUser = localStorage.getItem("fc_saved_user") || "";
 
-      // Jika username yang diketik berbeda dari user tersimpan, kosongkan password
       if (currentInputUser.toLowerCase() !== savedUser.toLowerCase()) {
         document.getElementById("password").value = "";
         document.getElementById("savePassword").checked = false;
@@ -158,7 +150,6 @@
       }
     }
 
-    // --- LOGIN ACTION ---
     function handleLogin(e) {
       e.preventDefault();
       const userVal = document.getElementById("username").value.trim();
@@ -173,7 +164,6 @@
       btnSpinner.classList.remove("d-none");
       alertBox.classList.add("d-none");
 
-      // Simpan/Hapus preferensi Save Password
       if (savePass) {
         localStorage.setItem("fc_saved_user", userVal);
         localStorage.setItem("fc_saved_pass", passVal);
@@ -191,7 +181,6 @@
           btnSpinner.classList.add("d-none");
 
           if (data.success) {
-            // Simpan Sesi ke Session Storage agar Refresh tidak Logout
             sessionStorage.setItem("fc_active_session", JSON.stringify(data));
             renderDashboard(data.user, data.companies);
           } else {
@@ -207,26 +196,20 @@
         });
     }
 
-    // --- LOGOUT ACTION ---
     function handleLogout() {
-      // 1. Hapus Sesi Login Aktif
       sessionStorage.removeItem("fc_active_session");
 
-      // 2. Kosongkan Form Input Login secara Bersih
       document.getElementById("username").value = "";
       document.getElementById("password").value = "";
       document.getElementById("savePassword").checked = false;
       document.getElementById("loginAlert").classList.add("d-none");
 
-      // 3. Tampilkan Halaman Login
       document.getElementById("dashboard-section").classList.add("d-none");
       document.getElementById("login-section").classList.remove("d-none");
 
-      // 4. Load kembali password tersimpan (jika ada untuk default user)
       loadSavedPassword();
     }
 
-    // --- RENDER DASHBOARD ---
     function formatIDR(amount, ccy) {
       return new Intl.NumberFormat('id-ID', { style: 'currency', currency: ccy || 'IDR', maximumFractionDigits: 0 }).format(amount);
     }
@@ -260,7 +243,6 @@
         grandTotalIDR += compTotal;
       });
 
-      // Tampilkan Total Keseluruhan Khusus Admin
       if (user.role === "admin") {
         const grandTotalCard = `
           <div class="card bg-primary text-white shadow-sm border-0 mb-4">
@@ -278,7 +260,6 @@
         container.innerHTML += grandTotalCard;
       }
 
-      // Render Per Company
       companies.forEach(company => {
         const compTotalIDR = companyTotals[company.companyName] || 0;
         
@@ -338,7 +319,6 @@
       });
     }
 
-    // --- PULL TO REFRESH (MOBILE) ---
     function initPullToRefresh() {
       let touchStartPosY = 0;
       const ptrIndicator = document.getElementById("ptr-indicator");
