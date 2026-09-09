@@ -101,17 +101,68 @@
   </div>
 
   <script>
+<script>
     // GANTI PASTA URL WEB APP APPS SCRIPT ANDA DI SINI:
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHF5n8LG9_clLnu3wA4xeDQMQ0k3LZHm6i-qhUNdhp5OhFmYKdBDD1atJve-CPkIaL/exec";
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHF5n8LG9_clLnu3wA4xeDQMQ0k3LZHm6i-qhUNdhp5OhFmYKdBDD1atJve-CPkIaL/exec
+";
 
     document.addEventListener("DOMContentLoaded", function() {
-      loadSavedPassword();
+      // 1. Cek apakah ada Sesi Login Aktif (Mencegah Auto-Logout saat Refresh)
+      checkActiveSession();
+
+      // 2. Event Handler untuk Auto-Clear Password saat Username Diganti
+      document.getElementById("username").addEventListener("input", handleUsernameChange);
+
+      // 3. Inisialisasi Pull To Refresh untuk HP
       initPullToRefresh();
     });
 
+    // --- SESSIONS & REFRESH HANDLING ---
+    function checkActiveSession() {
+      const savedSession = sessionStorage.getItem("fc_active_session");
+      if (savedSession) {
+        try {
+          const sessionData = JSON.parse(savedSession);
+          renderDashboard(sessionData.user, sessionData.companies);
+        } catch (e) {
+          sessionStorage.removeItem("fc_active_session");
+          loadSavedPassword();
+        }
+      } else {
+        loadSavedPassword();
+      }
+    }
+
+    function handleUsernameChange() {
+      const currentInputUser = document.getElementById("username").value.trim();
+      const savedUser = localStorage.getItem("fc_saved_user") || "";
+
+      // Jika username yang diketik berbeda dari user tersimpan, kosongkan password
+      if (currentInputUser.toLowerCase() !== savedUser.toLowerCase()) {
+        document.getElementById("password").value = "";
+        document.getElementById("savePassword").checked = false;
+      } else if (localStorage.getItem("fc_save_flag") === "true") {
+        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
+        document.getElementById("savePassword").checked = true;
+      }
+    }
+
+    function loadSavedPassword() {
+      if (localStorage.getItem("fc_save_flag") === "true") {
+        document.getElementById("username").value = localStorage.getItem("fc_saved_user") || "";
+        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
+        document.getElementById("savePassword").checked = true;
+      } else {
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
+        document.getElementById("savePassword").checked = false;
+      }
+    }
+
+    // --- LOGIN ACTION ---
     function handleLogin(e) {
       e.preventDefault();
-      const userVal = document.getElementById("username").value;
+      const userVal = document.getElementById("username").value.trim();
       const passVal = document.getElementById("password").value;
       const savePass = document.getElementById("savePassword").checked;
 
@@ -123,6 +174,7 @@
       btnSpinner.classList.remove("d-none");
       alertBox.classList.add("d-none");
 
+      // Simpan/Hapus preferensi Save Password
       if (savePass) {
         localStorage.setItem("fc_saved_user", userVal);
         localStorage.setItem("fc_saved_pass", passVal);
@@ -140,6 +192,8 @@
           btnSpinner.classList.add("d-none");
 
           if (data.success) {
+            // Simpan Sesi ke Session Storage agar Refresh tidak Logout
+            sessionStorage.setItem("fc_active_session", JSON.stringify(data));
             renderDashboard(data.user, data.companies);
           } else {
             alertBox.textContent = data.message;
@@ -154,19 +208,31 @@
         });
     }
 
-    function loadSavedPassword() {
-      if (localStorage.getItem("fc_save_flag") === "true") {
-        document.getElementById("username").value = localStorage.getItem("fc_saved_user") || "";
-        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
-        document.getElementById("savePassword").checked = true;
-      }
+    // --- LOGOUT ACTION ---
+    function handleLogout() {
+      // 1. Hapus Sesi Login Aktif
+      sessionStorage.removeItem("fc_active_session");
+
+      // 2. Kosongkan Form Input Login secara Bersih
+      document.getElementById("username").value = "";
+      document.getElementById("password").value = "";
+      document.getElementById("savePassword").checked = false;
+      document.getElementById("loginAlert").classList.add("d-none");
+
+      // 3. Tampilkan Halaman Login
+      document.getElementById("dashboard-section").classList.add("d-none");
+      document.getElementById("login-section").classList.remove("d-none");
+
+      // 4. Load kembali password tersimpan (jika ada untuk default user)
+      loadSavedPassword();
     }
 
+    // --- RENDER DASHBOARD ---
     function formatIDR(amount, ccy) {
       return new Intl.NumberFormat('id-ID', { style: 'currency', currency: ccy || 'IDR', maximumFractionDigits: 0 }).format(amount);
     }
 
-function renderDashboard(user, companies) {
+    function renderDashboard(user, companies) {
       document.getElementById("login-section").classList.add("d-none");
       document.getElementById("dashboard-section").classList.remove("d-none");
 
@@ -179,7 +245,6 @@ function renderDashboard(user, companies) {
       const container = document.getElementById("companies-container");
       container.innerHTML = "";
 
-      // 1. Hitung Total IDR Per Perusahaan & Total Global
       let grandTotalIDR = 0;
       let companyTotals = {};
 
@@ -187,7 +252,6 @@ function renderDashboard(user, companies) {
         let compTotal = 0;
         if (company.accounts && company.accounts.length > 0) {
           company.accounts.forEach(acc => {
-            // Hanya menjumlahkan rekening dengan mata uang IDR
             if ((acc.currency || 'IDR').toUpperCase() === 'IDR') {
               compTotal += Number(acc.lastBalance || 0);
             }
@@ -197,7 +261,7 @@ function renderDashboard(user, companies) {
         grandTotalIDR += compTotal;
       });
 
-      // 2. Tampilkan Card Grand Total (Khusus Role ADMIN / Super Admin)
+      // Tampilkan Total Keseluruhan Khusus Admin
       if (user.role === "admin") {
         const grandTotalCard = `
           <div class="card bg-primary text-white shadow-sm border-0 mb-4">
@@ -215,7 +279,7 @@ function renderDashboard(user, companies) {
         container.innerHTML += grandTotalCard;
       }
 
-      // 3. Render Card Masing-Masing Perusahaan beserta Subtotal IDR-nya
+      // Render Per Company
       companies.forEach(company => {
         const compTotalIDR = companyTotals[company.companyName] || 0;
         
@@ -274,11 +338,8 @@ function renderDashboard(user, companies) {
         container.innerHTML += companyCard;
       });
     }
-    function handleLogout() {
-      document.getElementById("dashboard-section").classList.add("d-none");
-      document.getElementById("login-section").classList.remove("d-none");
-    }
 
+    // --- PULL TO REFRESH (MOBILE) ---
     function initPullToRefresh() {
       let touchStartPosY = 0;
       const ptrIndicator = document.getElementById("ptr-indicator");
@@ -293,10 +354,11 @@ function renderDashboard(user, companies) {
 
       window.addEventListener('touchend', e => {
         if (ptrIndicator.style.top === '10px') {
-          setTimeout(() => { ptrIndicator.style.top = '-60px'; location.reload(); }, 1000);
+          setTimeout(() => { ptrIndicator.style.top = '-60px'; location.reload(); }, 800);
         }
       }, { passive: true });
     }
   </script>
+
 </body>
 </html>
