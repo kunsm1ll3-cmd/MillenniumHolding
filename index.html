@@ -196,18 +196,40 @@
         });
     }
 
+// --- LOGOUT ACTION ---
     function handleLogout() {
+      // 1. Hapus Sesi Login Aktif
       sessionStorage.removeItem("fc_active_session");
 
+      // 2. Hapus Preferensi Password Tersimpan (Agar bersih total saat logout)
+      localStorage.removeItem("fc_saved_user");
+      localStorage.removeItem("fc_saved_pass");
+      localStorage.removeItem("fc_save_flag");
+
+      // 3. Kosongkan Input Form Secara Total
       document.getElementById("username").value = "";
       document.getElementById("password").value = "";
       document.getElementById("savePassword").checked = false;
       document.getElementById("loginAlert").classList.add("d-none");
 
+      // 4. Pindah ke Tampilan Login
       document.getElementById("dashboard-section").classList.add("d-none");
       document.getElementById("login-section").classList.remove("d-none");
+    }
 
-      loadSavedPassword();
+    // --- LOAD SAVED CREDENTIALS ---
+    function loadSavedPassword() {
+      // Kosongkan form terlebih dahulu
+      document.getElementById("username").value = "";
+      document.getElementById("password").value = "";
+      document.getElementById("savePassword").checked = false;
+
+      // Hanya isi jika opsi Simpan Password diaktifkan
+      if (localStorage.getItem("fc_save_flag") === "true") {
+        document.getElementById("username").value = localStorage.getItem("fc_saved_user") || "";
+        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
+        document.getElementById("savePassword").checked = true;
+      }
     }
 
     function formatIDR(amount, ccy) {
