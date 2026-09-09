@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Financial Control & Cash Monitoring</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  
+  <style>
+    body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .login-card { max-width: 400px; width: 100%; border-radius: 12px; border: none; }
+    .brand-icon { width: 60px; height: 60px; background: rgba(13, 110, 253, 0.1); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+    .ptr-indicator { position: fixed; top: -60px; left: 50%; transform: translateX(-50%); background: #0d6efd; color: white; padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: top 0.3s ease; z-index: 9999; }
+    .footer-text { font-size: 0.78rem; color: #6c757d; }
+    .balance-card { border-left: 4px solid #0d6efd; transition: transform 0.2s; }
+    .balance-card:hover { transform: translateY(-3px); }
+  </style>
+</head>
+<body>
+
+  <div id="ptr-indicator" class="ptr-indicator">
+    <i class="fas fa-sync-alt fa-spin me-2"></i> Memperbarui data...
+  </div>
+
+  <!-- LOGIN SECTION -->
+  <div id="login-section" class="container-fluid d-flex flex-column align-items-center justify-content-center min-vh-100 bg-light py-4">
+    <div class="card login-card p-4 shadow-lg mb-3">
+      <div class="text-center mb-4">
+        <div class="brand-icon mb-2">
+          <i class="fas fa-chart-line fa-2x text-primary"></i>
+        </div>
+        <h4 class="fw-bold text-dark">Financial Control</h4>
+        <p class="text-muted small">Cash Monitoring & Bank Statements</p>
+      </div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="mb-3">
+          <label class="form-label text-secondary small">Username</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-user"></i></span>
+            <input type="text" id="username" class="form-control" placeholder="Masukkan username" required>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label text-secondary small">Password</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+            <input type="password" id="password" class="form-control" placeholder="Masukkan password" required>
+          </div>
+        </div>
+
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="savePassword">
+          <label class="form-check-label text-secondary small" for="savePassword">Simpan Password</label>
+        </div>
+
+        <button type="submit" id="btnLogin" class="btn btn-primary w-100 py-2">
+          <span id="btnText">Masuk (Login)</span>
+          <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+        </button>
+      </form>
+      <div id="loginAlert" class="alert alert-danger mt-3 d-none small" role="alert"></div>
+    </div>
+
+    <div class="text-center footer-text">
+      @2026 Millennium Holdings System
+    </div>
+  </div>
+
+  <!-- DASHBOARD SECTION -->
+  <div id="dashboard-section" class="d-none">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top shadow-sm">
+      <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#"><i class="fas fa-wallet me-2"></i>Financial Control</a>
+        <button class="btn btn-outline-light btn-sm ms-auto" onclick="handleLogout()">
+          <i class="fas fa-sign-out-alt"></i> Keluar
+        </button>
+      </div>
+    </nav>
+
+    <div class="container my-4">
+      <!-- USER INFO -->
+      <div class="card bg-white shadow-sm mb-4 border-0">
+        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <h5 class="fw-bold mb-1" id="user-display-name">User</h5>
+            <span class="badge bg-primary" id="user-display-role">ROLE</span>
+          </div>
+          <div class="text-end">
+            <span class="text-muted small d-block">Akses Perusahaan:</span>
+            <strong id="user-display-companies" class="text-dark"></strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPANY MONITORING CONTAINER -->
+      <div id="companies-container"></div>
+    </div>
+  </div>
+
+  <script>
+    // GANTI PASTA URL WEB APP APPS SCRIPT ANDA DI SINI:
+    const APPS_SCRIPT_URL = "URL_WEB_APP_APPS_SCRIPT_ANDA_DI_SINI";
+
+    document.addEventListener("DOMContentLoaded", function() {
+      loadSavedPassword();
+      initPullToRefresh();
+    });
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const userVal = document.getElementById("username").value;
+      const passVal = document.getElementById("password").value;
+      const savePass = document.getElementById("savePassword").checked;
+
+      const btnText = document.getElementById("btnText");
+      const btnSpinner = document.getElementById("btnSpinner");
+      const alertBox = document.getElementById("loginAlert");
+
+      btnText.textContent = "Memproses...";
+      btnSpinner.classList.remove("d-none");
+      alertBox.classList.add("d-none");
+
+      if (savePass) {
+        localStorage.setItem("fc_saved_user", userVal);
+        localStorage.setItem("fc_saved_pass", passVal);
+        localStorage.setItem("fc_save_flag", "true");
+      } else {
+        localStorage.removeItem("fc_saved_user");
+        localStorage.removeItem("fc_saved_pass");
+        localStorage.removeItem("fc_save_flag");
+      }
+
+      fetch(`${APPS_SCRIPT_URL}?action=login&username=${encodeURIComponent(userVal)}&password=${encodeURIComponent(passVal)}`)
+        .then(response => response.json())
+        .then(data => {
+          btnText.textContent = "Masuk (Login)";
+          btnSpinner.classList.add("d-none");
+
+          if (data.success) {
+            renderDashboard(data.user, data.companies);
+          } else {
+            alertBox.textContent = data.message;
+            alertBox.classList.remove("d-none");
+          }
+        })
+        .catch(err => {
+          btnText.textContent = "Masuk (Login)";
+          btnSpinner.classList.add("d-none");
+          alertBox.textContent = "Gagal terhubung ke server Backend!";
+          alertBox.classList.remove("d-none");
+        });
+    }
+
+    function loadSavedPassword() {
+      if (localStorage.getItem("fc_save_flag") === "true") {
+        document.getElementById("username").value = localStorage.getItem("fc_saved_user") || "";
+        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
+        document.getElementById("savePassword").checked = true;
+      }
+    }
+
+    function formatIDR(amount, ccy) {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: ccy || 'IDR', maximumFractionDigits: 0 }).format(amount);
+    }
+
+    function renderDashboard(user, companies) {
+      document.getElementById("login-section").classList.add("d-none");
+      document.getElementById("dashboard-section").classList.remove("d-none");
+
+      document.getElementById("user-display-name").textContent = user.name;
+      document.getElementById("user-display-role").textContent = user.role.toUpperCase();
+      
+      const compNames = companies.map(c => c.companyName).join(", ");
+      document.getElementById("user-display-companies").textContent = compNames || "Tidak Ada Access";
+
+      const container = document.getElementById("companies-container");
+      container.innerHTML = "";
+
+      companies.forEach(company => {
+        let accountsHTML = "";
+        if (company.accounts && company.accounts.length > 0) {
+          company.accounts.forEach(acc => {
+            accountsHTML += `
+              <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card balance-card h-100 shadow-sm p-3">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold text-primary"><i class="fas fa-university me-1"></i> ${acc.accountName}</span>
+                    <span class="badge bg-light text-dark border">${acc.currency}</span>
+                  </div>
+                  <h4 class="fw-bold text-dark my-1">${formatIDR(acc.lastBalance, acc.currency)}</h4>
+                  <div class="d-flex justify-content-between text-muted small mt-2">
+                    <span><i class="fas fa-list me-1"></i> ${acc.totalRows} Transaksi</span>
+                    <span><i class="fas fa-calendar-alt me-1"></i> ${acc.lastDataDate}</span>
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          accountsHTML = `<div class="col-12"><div class="alert alert-warning small">Data 'BalanceExport' tidak ditemukan atau kosong.</div></div>`;
+        }
+
+        let linksHTML = "";
+        if (company.bankLinks && company.bankLinks.length > 0) {
+          company.bankLinks.forEach(b => {
+            if (b.sheetUrl) {
+              linksHTML += `<a href="${b.sheetUrl}" target="_blank" class="btn btn-outline-secondary btn-sm me-2 mb-2"><i class="fas fa-external-link-alt me-1"></i> Combine ${b.bankName}</a>`;
+            }
+          });
+        }
+
+        const companyCard = `
+          <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+              <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-building text-primary me-2"></i> ${company.companyName}</h5>
+            </div>
+            <div class="card-body">
+              <h6 class="text-secondary small fw-bold mb-3">RINGKASAN REKENING BANK (BALANCE EXPORT)</h6>
+              <div class="row">
+                ${accountsHTML}
+              </div>
+              ${linksHTML ? `<div class="mt-2 pt-2 border-top"><h6 class="text-secondary small fw-bold mb-2">AKSES SHEET MUTASI TRANSMISI:</h6>${linksHTML}</div>` : ''}
+            </div>
+          </div>
+        `;
+        container.innerHTML += companyCard;
+      });
+    }
+
+    function handleLogout() {
+      document.getElementById("dashboard-section").classList.add("d-none");
+      document.getElementById("login-section").classList.remove("d-none");
+    }
+
+    function initPullToRefresh() {
+      let touchStartPosY = 0;
+      const ptrIndicator = document.getElementById("ptr-indicator");
+
+      window.addEventListener('touchstart', e => { touchStartPosY = e.touches[0].pageY; }, { passive: true });
+      window.addEventListener('touchmove', e => {
+        const touchMovePosY = e.touches[0].pageY;
+        if (window.scrollY === 0 && touchMovePosY - touchStartPosY > 120) {
+          ptrIndicator.style.top = '10px';
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchend', e => {
+        if (ptrIndicator.style.top === '10px') {
+          setTimeout(() => { ptrIndicator.style.top = '-60px'; location.reload(); }, 1000);
+        }
+      }, { passive: true });
+    }
+  </script>
+</body>
+</html>
