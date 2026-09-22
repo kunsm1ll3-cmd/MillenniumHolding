@@ -20,6 +20,52 @@
     .mutation-category-item { cursor: pointer; padding: 6px 10px; border-radius: 6px; transition: background 0.2s; }
     .mutation-category-item:hover { background-color: #eef2f7; }
     .table-detail { font-size: 0.78rem; }
+
+    /* INDIKATOR PERUBAHAN SALDO (BADGE NAIK / TURUN) */
+    .badge-diff {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      white-space: nowrap;
+    }
+
+    /* Uang Masuk / Penambahan (Hijau) */
+    .diff-up {
+      background-color: #e6f4ea;
+      color: #137333;
+      border: 1px solid #ceead6;
+    }
+
+    /* Uang Keluar / Pengurangan (Merah) */
+    .diff-down {
+      background-color: #fce8e6;
+      color: #c5221f;
+      border: 1px solid #fad2cf;
+    }
+
+    /* Saldo Tetap (Abu-abu) */
+    .diff-same {
+      background-color: #f1f3f4;
+      color: #5f6368;
+      border: 1px solid #e0e0e0;
+      font-weight: 500;
+    }
+
+    /* Badge Khusus Card Utama Header */
+    .grand-diff-up {
+      background-color: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+    .grand-diff-down {
+      background-color: rgba(220, 53, 69, 0.85);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+    }
   </style>
 </head>
 <body>
@@ -212,6 +258,53 @@
       return new Intl.NumberFormat('id-ID', { style: 'currency', currency: ccy || 'IDR', maximumFractionDigits: 0 }).format(amount);
     }
 
+    // Helper Ringkas Nominal Angka Perubahan (misal +100 Jt, -1.2 M, +500 Rb)
+    function formatRupiahShort(number) {
+      const absNum = Math.abs(number);
+      if (absNum >= 1000000000) {
+        return (absNum / 1000000000).toFixed(absNum % 1000000000 === 0 ? 0 : 2) + ' M';
+      }
+      if (absNum >= 1000000) {
+        return (absNum / 1000000).toFixed(absNum % 1000000 === 0 ? 0 : 2) + ' Jt';
+      }
+      if (absNum >= 1000) {
+        return (absNum / 1000).toFixed(0) + ' Rb';
+      }
+      return absNum.toLocaleString('id-ID');
+    }
+
+    // Helper Membuat HTML Badge Naik / Turun / Tetap
+    function createDiffBadge(currentValue, storageKey, isGrandHeader = false) {
+      const hasHistory = localStorage.getItem(storageKey) !== null;
+      const lastValue = Number(localStorage.getItem(storageKey) || 0);
+      let badgeHtml = '';
+
+      if (hasHistory) {
+        const diff = currentValue - lastValue;
+        if (diff > 0) {
+          const classUp = isGrandHeader ? 'grand-diff-up' : 'diff-up';
+          badgeHtml = `
+            <span class="badge-diff ${classUp}" title="Penambahan dana: ${formatIDR(diff)}">
+              ▲ +Rp ${formatRupiahShort(diff)}
+            </span>`;
+        } else if (diff < 0) {
+          const classDown = isGrandHeader ? 'grand-diff-down' : 'diff-down';
+          badgeHtml = `
+            <span class="badge-diff ${classDown}" title="Pengurangan dana: ${formatIDR(Math.abs(diff))}">
+              ▼ -Rp ${formatRupiahShort(Math.abs(diff))}
+            </span>`;
+        } else {
+          badgeHtml = `<span class="badge-diff diff-same">— Tetap</span>`;
+        }
+      } else {
+        badgeHtml = `<span class="badge-diff diff-same">Baru</span>`;
+      }
+
+      // Simpan nilai terbaru untuk pembandingan berikutnya
+      localStorage.setItem(storageKey, currentValue);
+      return badgeHtml;
+    }
+
     function renderDashboard(user, companies) {
       document.getElementById("login-section").classList.add("d-none");
       document.getElementById("dashboard-section").classList.remove("d-none");
@@ -242,12 +335,18 @@
       });
 
       if (user.role === "admin") {
+        // Badge Perubahan Total Keseluruhan (Grand Total)
+        const grandBadge = createDiffBadge(grandTotalIDR, 'hist_grand_total', true);
+
         const grandTotalCard = `
           <div class="card bg-primary text-white shadow-sm border-0 mb-4">
             <div class="card-body p-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
               <div>
                 <span class="text-white-50 text-uppercase fw-bold small"><i class="fas fa-coins me-2"></i>TOTAL KESELURUHAN SALDO IDR (ALL COMPANIES)</span>
-                <h2 class="fw-bold mb-0 mt-1">${formatIDR(grandTotalIDR, 'IDR')}</h2>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                  <h2 class="fw-bold mb-0">${formatIDR(grandTotalIDR, 'IDR')}</h2>
+                  ${grandBadge}
+                </div>
               </div>
               <div class="text-end">
                 <span class="badge bg-white text-primary fw-bold px-3 py-2 rounded-pill">${companies.length} Entitas Perusahaan</span>
@@ -261,21 +360,36 @@
       companies.forEach((company, compIndex) => {
         const compTotalIDR = companyTotals[company.companyName] || 0;
         
+        // Badge Perubahan Total Saldo Per Perusahaan
+        const companyBadge = createDiffBadge(compTotalIDR, `hist_comp_${company.companyName.replace(/\s+/g, '_')}`);
+
         let accountsHTML = "";
         if (company.accounts && company.accounts.length > 0) {
           company.accounts.forEach((acc, accIndex) => {
             const accId = `acc-${compIndex}-${accIndex}`;
-            
+            const currentBal = Number(acc.lastBalance || 0);
+
+            // Badge Perubahan Saldo Per Rekening Bank
+            const accKey = `hist_acc_${company.companyName.replace(/\s+/g, '_')}_${acc.accountName.replace(/\s+/g, '_')}`;
+            const bankDiffBadge = createDiffBadge(currentBal, accKey);
+
             accountsHTML += `
               <div class="col-md-6 col-lg-4 mb-3">
                 <div class="card balance-card h-100 shadow-sm p-3">
                   <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-bold text-primary"><i class="fas fa-university me-1"></i> ${acc.accountName}</span>
+                    <span class="fw-bold text-primary text-truncate me-1" title="${acc.accountName}">
+                      <i class="fas fa-university me-1"></i> ${acc.accountName}
+                    </span>
                     <span class="badge bg-light text-dark border">${acc.currency}</span>
                   </div>
-                  <h4 class="fw-bold ${acc.lastBalance < 0 ? 'text-danger' : 'text-dark'} my-1">
-                    ${formatIDR(acc.lastBalance, acc.currency)}
-                  </h4>
+                  
+                  <div class="d-flex align-items-center justify-content-between my-1 flex-wrap gap-1">
+                    <h4 class="fw-bold ${currentBal < 0 ? 'text-danger' : 'text-dark'} mb-0">
+                      ${formatIDR(currentBal, acc.currency)}
+                    </h4>
+                    ${bankDiffBadge}
+                  </div>
+
                   <div class="d-flex justify-content-between text-muted small mt-2 border-bottom pb-2">
                     <span><i class="fas fa-list me-1"></i> ${acc.totalRows} Transaksi</span>
                     <span><i class="fas fa-calendar-alt me-1"></i> ${acc.lastDataDate}</span>
@@ -319,9 +433,10 @@
           <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
               <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-building text-primary me-2"></i> ${company.companyName}</h5>
-              <div class="text-end">
-                <span class="text-muted small me-2">Total Saldo IDR:</span>
+              <div class="text-end d-flex align-items-center gap-2">
+                <span class="text-muted small">Total Saldo IDR:</span>
                 <span class="fw-bold text-success fs-5">${formatIDR(compTotalIDR, 'IDR')}</span>
+                ${companyBadge}
               </div>
             </div>
             <div class="card-body">
