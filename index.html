@@ -15,6 +15,11 @@
     .footer-text { font-size: 0.78rem; color: #6c757d; }
     .balance-card { border-left: 4px solid #0d6efd; transition: transform 0.2s; }
     .balance-card:hover { transform: translateY(-3px); }
+    
+    .btn-toggle-mutasi { text-decoration: none; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+    .mutation-category-item { cursor: pointer; padding: 6px 10px; border-radius: 6px; transition: background 0.2s; }
+    .mutation-category-item:hover { background-color: #eef2f7; }
+    .table-detail { font-size: 0.78rem; }
   </style>
 </head>
 <body>
@@ -100,9 +105,11 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // GANTI PASTA URL WEB APP APPS SCRIPT ANDA DI SINI:
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHF5n8LG9_clLnu3wA4xeDQMQ0k3LZHm6i-qhUNdhp5OhFmYKdBDD1atJve-CPkIaL/exec";
+    
+    let mutationsCache = {};
 
     document.addEventListener("DOMContentLoaded", function() {
       checkActiveSession();
@@ -126,28 +133,23 @@
     }
 
     function handleUsernameChange() {
-      const currentInputUser = document.getElementById("username").value.trim();
-      const savedUser = localStorage.getItem("fc_saved_user") || "";
+      const currentInputUser = document.getElementById("username").value.trim().toLowerCase();
+      const savedUser = (localStorage.getItem("fc_saved_user") || "").toLowerCase();
+      const isSaveActive = localStorage.getItem("fc_save_flag") === "true";
 
-      if (currentInputUser.toLowerCase() !== savedUser.toLowerCase()) {
-        document.getElementById("password").value = "";
-        document.getElementById("savePassword").checked = false;
-      } else if (localStorage.getItem("fc_save_flag") === "true") {
+      if (isSaveActive && currentInputUser === savedUser && currentInputUser !== "") {
         document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
         document.getElementById("savePassword").checked = true;
+      } else {
+        document.getElementById("password").value = "";
+        document.getElementById("savePassword").checked = false;
       }
     }
 
     function loadSavedPassword() {
-      if (localStorage.getItem("fc_save_flag") === "true") {
-        document.getElementById("username").value = localStorage.getItem("fc_saved_user") || "";
-        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
-        document.getElementById("savePassword").checked = true;
-      } else {
-        document.getElementById("username").value = "";
-        document.getElementById("password").value = "";
-        document.getElementById("savePassword").checked = false;
-      }
+      document.getElementById("username").value = "";
+      document.getElementById("password").value = "";
+      document.getElementById("savePassword").checked = false;
     }
 
     function handleLogin(e) {
@@ -196,45 +198,14 @@
         });
     }
 
-// --- LOGOUT ACTION ---
     function handleLogout() {
-      // 1. Hapus Sesi Login Aktif (User wajib re-login)
       sessionStorage.removeItem("fc_active_session");
-
-      // 2. Kosongkan Form Input secara visual saat Logout
       document.getElementById("username").value = "";
       document.getElementById("password").value = "";
       document.getElementById("savePassword").checked = false;
       document.getElementById("loginAlert").classList.add("d-none");
-
-      // 3. Tampilkan Halaman Login
       document.getElementById("dashboard-section").classList.add("d-none");
       document.getElementById("login-section").classList.remove("d-none");
-    }
-
-    // --- AUTO FILL SAAT USERNAME DIKETIK ---
-    function handleUsernameChange() {
-      const currentInputUser = document.getElementById("username").value.trim().toLowerCase();
-      const savedUser = (localStorage.getItem("fc_saved_user") || "").toLowerCase();
-      const isSaveActive = localStorage.getItem("fc_save_flag") === "true";
-
-      // Jika username yang diketik cocok dengan data yang pernah disimpan
-      if (isSaveActive && currentInputUser === savedUser && currentInputUser !== "") {
-        document.getElementById("password").value = localStorage.getItem("fc_saved_pass") || "";
-        document.getElementById("savePassword").checked = true;
-      } else {
-        // Jika beda user atau field dikosongkan, riset password
-        document.getElementById("password").value = "";
-        document.getElementById("savePassword").checked = false;
-      }
-    }
-
-    // --- LOAD CREDENTIALS SAAT HALAMAN DIBUKA ---
-    function loadSavedPassword() {
-      // Form diawali dalam kondisi kosong
-      document.getElementById("username").value = "";
-      document.getElementById("password").value = "";
-      document.getElementById("savePassword").checked = false;
     }
 
     function formatIDR(amount, ccy) {
@@ -287,12 +258,14 @@
         container.innerHTML += grandTotalCard;
       }
 
-      companies.forEach(company => {
+      companies.forEach((company, compIndex) => {
         const compTotalIDR = companyTotals[company.companyName] || 0;
         
         let accountsHTML = "";
         if (company.accounts && company.accounts.length > 0) {
-          company.accounts.forEach(acc => {
+          company.accounts.forEach((acc, accIndex) => {
+            const accId = `acc-${compIndex}-${accIndex}`;
+            
             accountsHTML += `
               <div class="col-md-6 col-lg-4 mb-3">
                 <div class="card balance-card h-100 shadow-sm p-3">
@@ -303,10 +276,28 @@
                   <h4 class="fw-bold ${acc.lastBalance < 0 ? 'text-danger' : 'text-dark'} my-1">
                     ${formatIDR(acc.lastBalance, acc.currency)}
                   </h4>
-                  <div class="d-flex justify-content-between text-muted small mt-2">
+                  <div class="d-flex justify-content-between text-muted small mt-2 border-bottom pb-2">
                     <span><i class="fas fa-list me-1"></i> ${acc.totalRows} Transaksi</span>
                     <span><i class="fas fa-calendar-alt me-1"></i> ${acc.lastDataDate}</span>
                   </div>
+
+                  <!-- ACCORDION MUTASI TOGGLE -->
+                  <div class="mt-2 text-end">
+                    <a class="btn-toggle-mutasi text-primary" data-bs-toggle="collapse" href="#collapse-${accId}" 
+                       onclick="loadMutations('${company.spreadsheetId}', '${acc.accountName}', '${accId}')">
+                      <i class="fas fa-chevron-down me-1"></i> Detail Mutasi Bulanan
+                    </a>
+                  </div>
+
+                  <!-- ACCORDION CONTENT (LEVEL 2 & 3) -->
+                  <div class="collapse mt-3" id="collapse-${accId}">
+                    <div id="mutation-body-${accId}" class="p-2 bg-light rounded border">
+                      <div class="text-center text-muted small py-2">
+                        <i class="fas fa-spinner fa-spin me-1"></i> Memuat mutasi...
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               </div>
             `;
@@ -344,6 +335,143 @@
         `;
         container.innerHTML += companyCard;
       });
+    }
+
+    function loadMutations(spreadsheetId, accountName, accId) {
+      const container = document.getElementById(`mutation-body-${accId}`);
+      const cacheKey = `${spreadsheetId}_${accountName}`;
+
+      if (mutationsCache[cacheKey]) {
+        renderMutationDetails(container, mutationsCache[cacheKey], accId);
+        return;
+      }
+
+      fetch(`${APPS_SCRIPT_URL}?action=getMutations&spreadsheetId=${encodeURIComponent(spreadsheetId)}&accountName=${encodeURIComponent(accountName)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            mutationsCache[cacheKey] = data.monthlyData;
+            renderMutationDetails(container, data.monthlyData, accId);
+          } else {
+            container.innerHTML = `<div class="alert alert-danger p-2 small mb-0">${data.message}</div>`;
+          }
+        })
+        .catch(err => {
+          container.innerHTML = `<div class="alert alert-danger p-2 small mb-0">Gagal mengambil data mutasi.</div>`;
+        });
+    }
+
+    function renderMutationDetails(container, monthlyData, accId) {
+      const months = Object.keys(monthlyData).sort().reverse();
+
+      if (months.length === 0) {
+        container.innerHTML = `<div class="text-muted small text-center py-2">Tidak ada riwayat mutasi.</div>`;
+        return;
+      }
+
+      let html = `<div class="accordion accordion-flush" id="acc-month-${accId}">`;
+
+      months.forEach((mKey, idx) => {
+        const mData = monthlyData[mKey];
+        const monthHeaderId = `mHead-${accId}-${idx}`;
+        const monthCollapseId = `mCol-${accId}-${idx}`;
+
+        const [year, month] = mKey.split("-");
+        const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+
+        html += `
+          <div class="accordion-item bg-transparent">
+            <h2 class="accordion-header" id="${monthHeaderId}">
+              <button class="accordion-button collapsed py-2 px-2 small bg-white rounded my-1 shadow-sm" type="button" data-bs-toggle="collapse" data-bs-target="#${monthCollapseId}">
+                <div class="w-100 d-flex justify-content-between align-items-center me-2">
+                  <span class="fw-bold text-dark">${monthName}</span>
+                  <div class="small">
+                    <span class="badge bg-success-subtle text-success me-1">+${formatIDR(mData.totalCashIn)}</span>
+                    <span class="badge bg-danger-subtle text-danger">-${formatIDR(mData.totalCashOut)}</span>
+                  </div>
+                </div>
+              </button>
+            </h2>
+            <div id="${monthCollapseId}" class="accordion-collapse collapse" data-bs-parent="#acc-month-${accId}">
+              <div class="accordion-body p-2 bg-white rounded mb-2 border">
+                
+                <!-- CASH IN SUB-GROUPS -->
+                <div class="mb-2">
+                  <span class="fw-bold text-success small"><i class="fas fa-arrow-down me-1"></i> Cash In (Masuk)</span>
+                  <div class="mutation-category-item d-flex justify-content-between small" data-bs-toggle="collapse" href="#items-setor-${accId}-${idx}">
+                    <span><i class="fas fa-caret-right me-1"></i> Setoran Tunai</span>
+                    <span class="fw-bold">${formatIDR(mData.setoranTunai.total)}</span>
+                  </div>
+                  <div class="collapse ms-3 mt-1" id="items-setor-${accId}-${idx}">
+                    ${renderTableItems(mData.setoranTunai.items)}
+                  </div>
+
+                  <div class="mutation-category-item d-flex justify-content-between small" data-bs-toggle="collapse" href="#items-trf-in-${accId}-${idx}">
+                    <span><i class="fas fa-caret-right me-1"></i> Transfer Masuk (Lainnya)</span>
+                    <span class="fw-bold">${formatIDR(mData.transferMasuk.total)}</span>
+                  </div>
+                  <div class="collapse ms-3 mt-1" id="items-trf-in-${accId}-${idx}">
+                    ${renderTableItems(mData.transferMasuk.items)}
+                  </div>
+                </div>
+
+                <!-- CASH OUT SUB-GROUPS -->
+                <div>
+                  <span class="fw-bold text-danger small"><i class="fas fa-arrow-up me-1"></i> Cash Out (Keluar)</span>
+                  <div class="mutation-category-item d-flex justify-content-between small" data-bs-toggle="collapse" href="#items-tarik-${accId}-${idx}">
+                    <span><i class="fas fa-caret-right me-1"></i> Tarikan Tunai</span>
+                    <span class="fw-bold">${formatIDR(mData.tarikanTunai.total)}</span>
+                  </div>
+                  <div class="collapse ms-3 mt-1" id="items-tarik-${accId}-${idx}">
+                    ${renderTableItems(mData.tarikanTunai.items)}
+                  </div>
+
+                  <div class="mutation-category-item d-flex justify-content-between small" data-bs-toggle="collapse" href="#items-trf-out-${accId}-${idx}">
+                    <span><i class="fas fa-caret-right me-1"></i> Transfer Keluar (Lainnya)</span>
+                    <span class="fw-bold">${formatIDR(mData.transferKeluar.total)}</span>
+                  </div>
+                  <div class="collapse ms-3 mt-1" id="items-trf-out-${accId}-${idx}">
+                    ${renderTableItems(mData.transferKeluar.items)}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    function renderTableItems(items) {
+      if (!items || items.length === 0) {
+        return `<div class="text-muted small py-1 fst-italic">Tidak ada transaksi.</div>`;
+      }
+
+      let rows = items.map(item => `
+        <tr>
+          <td>${item.date}</td>
+          <td class="text-truncate" style="max-width: 140px;" title="${item.desc}">${item.desc || '-'}</td>
+          <td class="text-end fw-semibold">${formatIDR(item.amount)}</td>
+        </tr>
+      `).join("");
+
+      return `
+        <table class="table table-sm table-striped table-bordered table-detail mb-1">
+          <thead class="table-light">
+            <tr>
+              <th>Tgl</th>
+              <th>Ket</th>
+              <th class="text-end">Nominal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
     }
 
     function initPullToRefresh() {
